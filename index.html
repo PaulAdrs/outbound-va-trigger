@@ -862,6 +862,9 @@ async function fireCall(phone, context = {}, contactName = '', contactFullName =
 
   if (!agentId) return { ok: false, error: 'Agent ID missing' };
 
+  // Normalize to E.164 — prepend + if not present
+  if (phone && !phone.startsWith('+')) phone = '+' + phone;
+
   const url = `${BASE_URL}/${agentId}`;
   const body = {
     contact_phone: phone,
@@ -871,6 +874,8 @@ async function fireCall(phone, context = {}, contactName = '', contactFullName =
   };
   if (contactName) body.contact_name = contactName;
   if (contactFullName) body.contact_full_name = contactFullName;
+
+  log(`→ body: ${JSON.stringify(body)}`, 'info');
 
   const headers = { 'Content-Type': 'application/json' };
   if (apiKey && apiSecret) {
