@@ -252,10 +252,32 @@
 
   .mapping-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    grid-template-columns: 1fr 14px 1fr 52px;
+    gap: 6px;
     align-items: center;
   }
+  .mapping-arrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    text-align: center;
+  }
+  .mapping-action {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 10px;
+    outline: none;
+    width: 100%;
+    cursor: pointer;
+    text-align: center;
+  }
+  .mapping-action:focus { border-color: var(--accent); }
+  .mapping-action.skip-active { color: var(--danger); border-color: rgba(255,68,68,0.3); }
+  .mapping-action.phone-active { color: var(--accent); border-color: var(--accent-border); }
 
   .mapping-key {
     font-family: var(--mono);
@@ -770,6 +792,7 @@ function parseCSVLine(line) {
 }
 
 // ── Column Mapping ──
+// columnMap[csvHeader] = { action: 'context'|'phone'|'skip', key: 'contextKeyName' }
 function buildMapping() {
   const sec = document.getElementById('mappingSection');
   const grid = document.getElementById('mappingGrid');
@@ -777,28 +800,87 @@ function buildMapping() {
   grid.innerHTML = '';
   columnMap = {};
 
+  // Header row
+  const hdr = document.createElement('div');
+  hdr.className = 'mapping-row';
+  hdr.style.marginBottom = '2px';
+  hdr.innerHTML = `
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.08em;">CSV COLUMN</div>
+    <div></div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.08em;">CONTEXT KEY</div>
+    <div></div>`;
+  grid.appendChild(hdr);
+
   csvHeaders.forEach(h => {
     const lh = h.toLowerCase();
+    const isPhone = lh.includes('phone');
     const row = document.createElement('div');
     row.className = 'mapping-row';
 
-    const key = document.createElement('div');
-    key.className = 'mapping-key';
-    key.textContent = h;
+    // CSV column name (static)
+    const csvLabel = document.createElement('div');
+    csvLabel.className = 'mapping-key';
+    csvLabel.textContent = h;
+    csvLabel.title = h;
 
-    const sel = document.createElement('select');
-    const options = ['(auto-context)', 'phone', 'skip'];
-    options.forEach(opt => {
-      const o = document.createElement('option');
-      o.value = opt; o.textContent = opt;
-      if (lh.includes('phone') && opt === 'phone') o.selected = true;
-      sel.appendChild(o);
+    // Arrow
+    const arrow = document.createElement('div');
+    arrow.className = 'mapping-arrow';
+    arrow.textContent = '→';
+
+    // Context key input (editable, pre-filled with column name)
+    const keyInput = document.createElement('input');
+    keyInput.type = 'text';
+    keyInput.value = isPhone ? '' : h;
+    keyInput.style.cssText = 'padding:4px 7px;font-size:11px;';
+    keyInput.disabled = isPhone;
+    if (isPhone) keyInput.placeholder = '(phone)';
+
+    // Action button: cycles phone → skip → context
+    const action = document.createElement('button');
+    action.className = 'mapping-action';
+
+    const initialAction = isPhone ? 'phone' : 'context';
+    columnMap[h] = { action: initialAction, key: h };
+
+    function setAction(a) {
+      columnMap[h].action = a;
+      if (a === 'phone') {
+        action.textContent = 'phone';
+        action.className = 'mapping-action phone-active';
+        keyInput.disabled = true;
+        keyInput.value = '';
+        keyInput.placeholder = '(phone)';
+      } else if (a === 'skip') {
+        action.textContent = 'skip';
+        action.className = 'mapping-action skip-active';
+        keyInput.disabled = true;
+        keyInput.value = '';
+        keyInput.placeholder = '(skipped)';
+      } else {
+        action.textContent = 'context';
+        action.className = 'mapping-action';
+        keyInput.disabled = false;
+        keyInput.value = columnMap[h].key || h;
+        keyInput.placeholder = '';
+      }
+    }
+    setAction(initialAction);
+
+    action.addEventListener('click', () => {
+      const cur = columnMap[h].action;
+      const next = cur === 'phone' ? 'skip' : cur === 'skip' ? 'context' : 'phone';
+      setAction(next);
     });
-    sel.addEventListener('change', () => { columnMap[h] = sel.value; });
-    columnMap[h] = sel.value || '(auto-context)';
 
-    row.appendChild(key);
-    row.appendChild(sel);
+    keyInput.addEventListener('input', () => {
+      columnMap[h].key = keyInput.value.trim();
+    });
+
+    row.appendChild(csvLabel);
+    row.appendChild(arrow);
+    row.appendChild(keyInput);
+    row.appendChild(action);
     grid.appendChild(row);
   });
 }
@@ -900,13 +982,14 @@ async function startDialing() {
     const c = contacts[i];
     if (c._status !== 'queued') continue;
 
-    // Find phone
+    // Find phone + build context using mapped keys
     let phone = '';
     let context = {};
     csvHeaders.forEach(h => {
-      const mapping = columnMap[h] || '(auto-context)';
-      if (mapping === 'phone') phone = c[h];
-      else if (mapping !== 'skip') context[h] = c[h];
+      const m = columnMap[h] || { action: 'context', key: h };
+      if (m.action === 'phone') phone = c[h];
+      else if (m.action === 'context') context[m.key || h] = c[h];
+      // skip: omit
     });
 
     if (!phone) {
