@@ -787,11 +787,13 @@ function buildMapping() {
     key.textContent = h;
 
     const sel = document.createElement('select');
-    const options = ['(auto-context)', 'phone', 'skip'];
+    const options = ['(auto-context)', 'phone', 'contact_name', 'contact_full_name', 'skip'];
     options.forEach(opt => {
       const o = document.createElement('option');
       o.value = opt; o.textContent = opt;
       if (lh.includes('phone') && opt === 'phone') o.selected = true;
+      else if ((lh === 'contact_name' || lh === 'name') && opt === 'contact_name') o.selected = true;
+      else if ((lh === 'contact_full_name' || lh === 'full_name' || lh === 'fullname') && opt === 'contact_full_name') o.selected = true;
       sel.appendChild(o);
     });
     sel.addEventListener('change', () => { columnMap[h] = sel.value; });
@@ -831,21 +833,27 @@ async function fireTestCall() {
   const phone = document.getElementById('testPhone').value.trim();
   if (!phone) { toast('Enter a phone number', 'err'); return; }
 
+  const TOP_LEVEL = ['contact_name', 'contact_full_name'];
   const context = {};
+  let contactName = '';
+  let contactFullName = '';
   contextFields.forEach(id => {
     const k = document.getElementById(`ctxk-${id}`)?.value.trim();
     const v = document.getElementById(`ctxv-${id}`)?.value.trim();
-    if (k) context[k] = v;
+    if (!k) return;
+    if (k === 'contact_name') contactName = v;
+    else if (k === 'contact_full_name') contactFullName = v;
+    else context[k] = v;
   });
 
   log(`Test call → ${phone}`, 'info');
-  const result = await fireCall(phone, context);
+  const result = await fireCall(phone, context, contactName, contactFullName);
   if (result.ok) log(`Test call fired ✓`, 'ok');
   else log(`Test call failed: ${result.error}`, 'err');
 }
 
 // ── Core call function ──
-async function fireCall(phone, context = {}) {
+async function fireCall(phone, context = {}, contactName = '', contactFullName = '') {
   const agentId = document.getElementById('agentId').value.trim();
   const apiKey = document.getElementById('apiKey').value.trim();
   const apiSecret = document.getElementById('apiSecret').value.trim();
@@ -860,6 +868,8 @@ async function fireCall(phone, context = {}) {
     expiration_seconds: expiration,
     context
   };
+  if (contactName) body.contact_name = contactName;
+  if (contactFullName) body.contact_full_name = contactFullName;
 
   const headers = { 'Content-Type': 'application/json' };
   if (apiKey && apiSecret) {
@@ -896,10 +906,14 @@ async function startDialing() {
 
     // Find phone
     let phone = '';
+    let contactName = '';
+    let contactFullName = '';
     let context = {};
     csvHeaders.forEach(h => {
       const mapping = columnMap[h] || '(auto-context)';
       if (mapping === 'phone') phone = c[h];
+      else if (mapping === 'contact_name') contactName = c[h];
+      else if (mapping === 'contact_full_name') contactFullName = c[h];
       else if (mapping !== 'skip') context[h] = c[h];
     });
 
@@ -915,7 +929,7 @@ async function startDialing() {
     renderContacts();
     log(`Calling ${phone}...`);
 
-    const result = await fireCall(phone, context);
+    const result = await fireCall(phone, context, contactName, contactFullName);
     if (result.ok) {
       c._status = 'fired';
       stats.queued--; stats.fired++;
