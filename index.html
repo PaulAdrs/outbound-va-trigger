@@ -792,8 +792,8 @@ function buildMapping() {
       const o = document.createElement('option');
       o.value = opt; o.textContent = opt;
       if (lh.includes('phone') && opt === 'phone') o.selected = true;
-      else if ((lh === 'contact_name' || lh === 'name') && opt === 'contact_name') o.selected = true;
-      else if ((lh === 'contact_full_name' || lh === 'full_name' || lh === 'fullname') && opt === 'contact_full_name') o.selected = true;
+      else if ((lh === 'contact_name' || lh === 'name' || lh === 'first name' || lh === 'first_name') && opt === 'contact_name') o.selected = true;
+      else if ((lh === 'contact_full_name' || lh === 'full_name' || lh === 'fullname' || lh === 'full name') && opt === 'contact_full_name') o.selected = true;
       sel.appendChild(o);
     });
     sel.addEventListener('change', () => { columnMap[h] = sel.value; });
