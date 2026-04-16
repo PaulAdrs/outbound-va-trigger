@@ -873,6 +873,7 @@ async function fireCall(phone, context = {}, contactName = '', contactFullName =
     context
   };
   if (contactName) body.contact_name = contactName;
+  else body.contact_name = phone; // contact_name is required by the API
   if (contactFullName) body.contact_full_name = contactFullName;
 
   log(`→ body: ${JSON.stringify(body)}`, 'info');
