@@ -797,7 +797,8 @@ function buildMapping() {
       sel.appendChild(o);
     });
     sel.addEventListener('change', () => { columnMap[h] = sel.value; });
-    columnMap[h] = sel.value || '(auto-context)';
+    // Read value after all options appended so selected attr is reflected
+    columnMap[h] = sel.querySelector('option[selected]')?.value || sel.value || '(auto-context)';
 
     row.appendChild(key);
     row.appendChild(sel);
@@ -891,6 +892,13 @@ async function fireCall(phone, context = {}, contactName = '', contactFullName =
 // ── Dialing Loop ──
 async function startDialing() {
   if (!contacts.length) { toast('No contacts loaded', 'err'); return; }
+
+  // Pre-flight: warn if no column mapped to contact_name
+  const hasNameCol = Object.values(columnMap).includes('contact_name');
+  if (!hasNameCol) {
+    const proceed = confirm('No column is mapped to contact_name, which is required by the API.\n\nMap a column to "contact_name" in the Column Mapping section, then try again.\n\nProceed anyway?');
+    if (!proceed) return;
+  }
   running = true; stopFlag = false;
   document.getElementById('btnStart').disabled = true;
   document.getElementById('btnStop').disabled = false;
@@ -921,6 +929,14 @@ async function startDialing() {
       c._status = 'failed';
       stats.queued--; stats.failed++;
       log(`Contact ${i+1}: no phone column mapped`, 'err');
+      updateStats(); renderContacts();
+      continue;
+    }
+
+    if (!contactName) {
+      c._status = 'failed';
+      stats.queued--; stats.failed++;
+      log(`Contact ${i+1} (${phone}): contact_name is empty — map a column to contact_name`, 'err');
       updateStats(); renderContacts();
       continue;
     }
